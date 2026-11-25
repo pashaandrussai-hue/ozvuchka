@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Озвучка текста — бесплатная программа</title>
+<meta name="description" content="Бесплатная программа: вставляешь текст — получаешь mp3. 309 голосов, 74 языка, без регистрации и подписки.">
+<style>
+  :root{--bg:#080c10;--panel:#101820;--line:#1f2c37;--text:#eaf3f9;--dim:#8ba0b2;--accent:#5ee0ff;--accent2:#7cf7a0}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(900px 500px at 20% -10%,#123141 0,transparent 60%),var(--bg);color:var(--text);
+       font:16px/1.6 "Segoe UI",Roboto,system-ui,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:56px 20px 80px}
+  h1{font-size:40px;line-height:1.15;margin:0 0 14px;letter-spacing:-.5px}
+  h1 em{color:var(--accent);font-style:normal}
+  .lead{font-size:18px;color:#c3d6e3;margin:0 0 28px;max-width:640px}
+  .badges{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:26px}
+  .badge{font-size:13px;padding:5px 12px;border-radius:99px;border:1px solid #234a33;background:#0e1c15;color:var(--accent2)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:22px}
+  .shot{width:100%;border-radius:12px;border:1px solid var(--line);display:block}
+  .btn{display:inline-block;text-decoration:none;border-radius:12px;padding:15px 26px;font-weight:700;font-size:16px;
+       background:linear-gradient(135deg,var(--accent),#4ab6ff);color:#04222c;transition:.15s}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.ghost{background:transparent;border:1px solid #2c3f4d;color:var(--text);font-weight:600}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .note{font-size:13px;color:var(--dim);margin-top:14px;line-height:1.7}
+  h2{font-size:20px;margin:0 0 14px}
+  ol,ul{margin:0;padding-left:22px;color:#c3d6e3}
+  li{margin-bottom:8px}
+  details{border-top:1px solid var(--line);padding:14px 0}
+  details:first-of-type{border-top:0}
+  summary{cursor:pointer;font-weight:600;color:var(--text)}
+  details p{color:#a9bccb;margin:10px 0 0;font-size:14.5px}
+  .kicker{font-size:12px;text-transform:uppercase;letter-spacing:1.4px;color:var(--accent);margin-bottom:8px}
+  footer{margin-top:34px;font-size:12.5px;color:#5d7080;line-height:1.7}
+  code{background:#0b141b;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="kicker">программа №1 · бесплатно</div>
+  <h1>Озвучка текста: вставил — <em>получил mp3</em></h1>
+  <p class="lead">Бесплатная программа для Windows. 309 голосов, 74 языка. Без регистрации, без ключей, без подписки — файлы остаются у тебя на компьютере.</p>
+
+  <div class="badges">
+    <span class="badge">309 голосов</span>
+    <span class="badge">74 языка</span>
+    <span class="badge">без регистрации</span>
+    <span class="badge">работает локально</span>
+  </div>
+
+  <div class="panel">
+    <img class="shot" src="screenshot.png" alt="Интерфейс программы: поле для текста, выбор голоса, скорость и тон">
+    <div class="row" style="margin-top:20px">
+      <a class="btn" id="download" href="https://github.com/pashaandrussai-hue/ozvuchka/releases/latest/download/ozvuchka.exe" rel="noopener">Скачать .exe · 96 МБ</a>
+      <a class="btn ghost" id="donate" href="https://pay.cloudtips.ru/p/2b6dd6ab" rel="noopener" target="_blank">Поддержать проект</a>
+    </div>
+    <div class="note">
+      Windows 10/11. Один файл: скачай <code>ozvuchka.exe</code> и запусти — программа откроется в браузере, устанавливать ничего не нужно.
+      Windows может предупредить, что файл без цифровой подписи: «Подробнее» → «Выполнить всё равно». Подписи нет, потому что она стоит денег, а программа бесплатная.
+      Если не доверяешь exe — есть <a href="https://github.com/pashaandrussai-hue/ozvuchka/releases" rel="noopener" style="color:#5ee0ff">сборка с исходниками</a> (запуск через Node.js).
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Что она умеет</h2>
+    <ul>
+      <li>309 голосов и 74 языка, скорость от −50% до +50%, тон ±40 Гц.</li>
+      <li>Длинный текст режется на части автоматически и склеивается в один файл (проверено на 2 875 символах → 2 мин 57 с).</li>
+      <li><b>Субтитры .srt в подарок:</b> вместе с mp3 сохраняется файл с точным временем по каждому слову — сразу подставляется в CapCut, Premiere или YouTube.</li>
+      <li>Готовые файлы сохраняются в папку <code>output</code> рядом с программой.</li>
+      <li>Ничего не отправляется «куда-то ещё»: локальный сервер слушает только твой компьютер.</li>
+    </ul>
+  </div>
+
+  <div class="panel">
+    <h2>Почему бесплатно</h2>
+    <p style="color:#c3d6e3;margin:0">Это первая программа из моего публичного пути: я не умею программировать, но агент делает работу за меня — код пишет он, показываю и объясняю я. Программа останется бесплатной. Если она сэкономила тебе время — можно поддержать проект донатом, любой суммой. Донат ничего не открывает и ничего не блокирует.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Частые вопросы</h2>
+    <details open><summary>Нужен ли интернет?</summary><p>Да, для синтеза речи: голоса предоставляет бесплатный сервис Microsoft Edge. Всё остальное — локально.</p></details>
+    <details><summary>А можно озвучить голосом знаменитости?</summary><p>Нет, и это принципиально. Программа озвучивает текст готовыми голосами, а не клонирует чужие. Клонирование голоса известного человека без разрешения — это претензии по закону и бан аккаунта, а не «фича». Озвучка своим голосом по записи — следующая версия, и только для голосов, на которые у тебя есть право.</p></details>
+    <details><summary>Это точно вирус?</summary><p>Внутри: сервер на Node.js, один HTML-файл интерфейса и каталог голосов. Никаких установщиков, служб и автозапуска. Открой <code>server.js</code> блокнотом — там весь код, он читается.</p></details>
+    <details><summary>Что дальше?</summary><p>Вторая версия — озвучка своим голосом по короткой записи. Дальше — то, что попросят пользователи. Путь показываю в TikTok: <b>@Deepseek_без_человека</b>.</p></details>
+  </div>
+
+  <footer>
+    Голоса предоставляются бесплатным сервисом Microsoft Edge. Программа не собирает данные и не требует оплаты.<br>
+    Озвучивай только тот текст и те голоса, на которые у тебя есть право.
+  </footer>
+</div>
+</body>
+</html>
