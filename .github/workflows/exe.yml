@@ -1,0 +1,50 @@
+name: Build exe and release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Зависимости
+        run: npm install --no-audit --no-fund
+
+      - name: Сборка exe
+        run: node tools/build_exe.js
+
+      - name: Проверка, что файл собрался
+        shell: pwsh
+        run: |
+          $f = Get-Item ozvuchka.exe
+          "exe: $([math]::Round($f.Length/1MB,1)) МБ"
+          "SHA256: $((Get-FileHash ozvuchka.exe -Algorithm SHA256).Hash)"
+
+      - name: Публикация релиза
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1
+          name: Озвучка текста v1.1 (exe)
+          body: |
+            Один файл: скачай **ozvuchka.exe** и запусти. Ничего устанавливать не нужно.
+
+            - 309 голосов, 74 языка
+            - субтитры .srt с таймингом по каждому слову
+            - файлы сохраняются в папку `output` рядом с программой
+
+            Windows может предупредить, что файл без цифровой подписи: «Подробнее» → «Выполнить всё равно».
+          files: ozvuchka.exe
+          make_latest: true

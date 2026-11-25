@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Озвучка текста — бесплатно</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121a22; --panel2:#0e151c; --line:#22303d;
+    --text:#e8f1f8; --dim:#8ba0b2; --accent:#5ee0ff; --accent2:#7cf7a0; --warn:#ff8a7a;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:radial-gradient(900px 500px at 15% -10%, #14313f 0%, transparent 60%),
+                        radial-gradient(700px 400px at 100% 0%, #1b2440 0%, transparent 55%), var(--bg);
+    color:var(--text); font:15px/1.5 "Segoe UI",Roboto,system-ui,sans-serif;
+    min-height:100vh; padding:28px 16px 60px;
+  }
+  .wrap{max-width:920px;margin:0 auto}
+  header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+  h1{font-size:24px;margin:0;letter-spacing:-.3px}
+  h1 span{color:var(--accent)}
+  .badge{font-size:12px;color:var(--accent2);border:1px solid #234a33;background:#0e1c15;padding:3px 9px;border-radius:99px}
+  .sub{color:var(--dim);margin:6px 0 22px;font-size:13.5px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+  textarea{
+    width:100%;min-height:170px;resize:vertical;background:var(--panel2);color:var(--text);
+    border:1px solid var(--line);border-radius:10px;padding:12px 14px;font:15px/1.55 inherit;
+  }
+  textarea:focus,select:focus,input:focus{outline:2px solid #2b6b80;outline-offset:1px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  .grow{flex:1 1 240px}
+  select,input[type=text]{
+    width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:9px;padding:9px 11px;font:14px inherit;
+  }
+  label{display:block;font-size:12px;color:var(--dim);margin-bottom:5px;letter-spacing:.3px;text-transform:uppercase}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .val{color:var(--accent);font-variant-numeric:tabular-nums}
+  button{
+    border:0;border-radius:10px;padding:12px 20px;font:600 15px inherit;cursor:pointer;
+    background:linear-gradient(135deg,var(--accent),#4ab6ff);color:#04222c;transition:.15s;
+  }
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.45;cursor:not-allowed;filter:none}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--dim);font-weight:500;padding:9px 14px}
+  button.ghost:hover{color:var(--text);border-color:#3a4c5c;filter:none}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:16px}
+  .status{font-size:13px;color:var(--dim);min-height:18px}
+  .status.err{color:var(--warn)}
+  .status.ok{color:var(--accent2)}
+  audio{width:100%;margin-top:14px;filter:invert(.92) hue-rotate(180deg)}
+  .hint{font-size:12px;color:#6d8296;margin-top:10px;line-height:1.5}
+  .knobs{display:grid;grid-template-columns:1fr 1fr auto;gap:16px;align-items:end;margin-top:16px}
+  .counter{font-size:12px;color:var(--dim);text-align:right}
+  .note{font-size:12.5px;color:var(--accent);margin-top:8px;min-height:0}
+  .note a{color:var(--accent);text-decoration:underline;cursor:pointer}
+  footer{margin-top:22px;font-size:12px;color:#5d7080;line-height:1.6}
+  @media (max-width:640px){ .grid{grid-template-columns:1fr} .knobs{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Озвучка <span>текста</span></h1>
+    <span class="badge" id="voiceCount">голоса загружаются…</span>
+  </header>
+  <p class="sub">Вставь текст — получи готовый mp3. Бесплатно, без регистрации и без ключей.</p>
+
+  <div class="panel">
+    <label for="text">Текст для озвучки</label>
+    <textarea id="text" placeholder="Вставь сюда текст — статью, сценарий, пост, озвучку для видео…"></textarea>
+    <div class="row">
+      <div class="counter grow" id="counter">0 символов</div>
+      <button class="ghost" id="paste">Вставить из буфера</button>
+      <button class="ghost" id="sample">Пример текста</button>
+      <button class="ghost" id="clear">Очистить</button>
+    </div>
+
+    <div class="grid">
+      <div>
+        <label for="filter">Поиск голоса</label>
+        <input type="text" id="filter" placeholder="например: Svetlana, English, женский…">
+      </div>
+      <div>
+        <label for="voice">Голос</label>
+        <div style="display:flex;gap:8px">
+          <select id="voice" style="flex:1 1 auto"></select>
+          <button class="ghost" id="listen" type="button" title="Послушать выбранный голос" style="white-space:nowrap;padding:9px 12px">▶</button>
+        </div>
+      </div>
+    </div>
+    <div class="note" id="note" style="display:none"></div>
+
+    <div class="knobs">
+      <div>
+        <label>Скорость <span class="val" id="rateVal">обычная</span></label>
+        <input type="range" id="rate" min="-50" max="50" step="5" value="0">
+      </div>
+      <div>
+        <label>Тон <span class="val" id="pitchVal">обычный</span></label>
+        <input type="range" id="pitch" min="-40" max="40" step="5" value="0">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button id="go">Озвучить</button>
+      <a id="dl" style="display:none" download><button class="ghost" type="button">Скачать mp3</button></a>
+      <a id="dlSrt" style="display:none" download><button class="ghost" type="button">Субтитры .srt</button></a>
+      <span class="status" id="status"></span>
+    </div>
+
+    <audio id="player" controls style="display:none"></audio>
+    <div class="hint">Готовые файлы сохраняются в папку <b>output</b> рядом с программой: <b>mp3</b> и <b>субтитры .srt</b> с точным временем по каждому слову — их можно сразу подставить в CapCut, Premiere или загрузить на YouTube.</div>
+  </div>
+
+  <footer>
+    Голоса предоставляются бесплатным сервисом Microsoft Edge. Озвучивай только тот текст и те голоса, на которые у тебя есть право.
+    Программа не требует оплаты и не собирает твои данные.
+  </footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const SAMPLE = 'Привет. Это пример того, как программа читает текст. Я могу озвучить статью, сценарий для видео или пост — выбери голос, скорость и тон, и через пару секунд будет готовый файл.';
+const isCyr = (s) => /[а-яё]/i.test(s);
+const isMulti = (v) => /Multilingual/.test(v.ShortName);
+
+let VOICES = [];
+let showAll = false;
+let lastUrl = null;
+
+function baseName(short){
+  return short.replace(/^[a-zA-Z]{2}-[a-zA-Z]{2}-/, '').replace(/Neural$/, '').replace(/Multilingual/, ' (мультиязычный)');
+}
+function genderRu(g){ return g === 'Male' ? 'муж.' : g === 'Female' ? 'жен.' : g; }
+const LANG = {
+  ru:'Русский',en:'Английский',es:'Испанский',de:'Немецкий',fr:'Французский',it:'Итальянский',
+  pt:'Португальский',zh:'Китайский',ja:'Японский',ko:'Корейский',ar:'Арабский',tr:'Турецкий',
+  pl:'Польский',uk:'Украинский',nl:'Нидерландский',hi:'Хинди',cs:'Чешский',sv:'Шведский',
+  da:'Датский',fi:'Финский',nb:'Норвежский',el:'Греческий',he:'Иврит',hu:'Венгерский',
+  ro:'Румынский',sk:'Словацкий',bg:'Болгарский',hr:'Хорватский',sr:'Сербский',sl:'Словенский',
+  et:'Эстонский',lv:'Латышский',lt:'Литовский',th:'Тайский',vi:'Вьетнамский',id:'Индонезийский',
+  ms:'Малайский',fa:'Персидский',ur:'Урду',ta:'Тампильский',te:'Телугу',bn:'Бенгальский',
+  ka:'Грузинский',kk:'Казахский',az:'Азербайджанский',hy:'Армянский',uz:'Узбекский',sw:'Суахили',af:'Африкаанс'
+};
+const langRu = (code) => LANG[code] || code;
+
+function allowedVoices(){
+  let list = showAll ? VOICES : VOICES.filter(v => v.Ok !== false);
+  // Проверено самопроверкой: 9 голосов Edge отдают пустой звук — по умолчанию прячем.
+  if (!showAll && isCyr($('text').value)) list = list.filter(v => v.Locale.startsWith('ru-') || isMulti(v));
+  const q = $('filter').value.trim().toLowerCase();
+  if (q) {
+    list = list.filter(v =>
+      (v.ShortName + ' ' + v.Locale + ' ' + v.Gender + ' ' + langRu(v.Locale.split('-')[0]) + ' ' + genderRu(v.Gender))
+        .toLowerCase().includes(q));
+  }
+  return list;
+}
+
+function buildSelect(list){
+  const sel = $('voice');
+  const prev = sel.value;
+  sel.innerHTML = '';
+  const mkGroup = (label) => { const g = document.createElement('optgroup'); g.label = label; return g; };
+  const addOpt = (parent, v) => {
+    const o = document.createElement('option');
+    o.value = v.ShortName;
+    o.textContent = `${baseName(v.ShortName)} · ${v.Locale} · ${genderRu(v.Gender)}`;
+    parent.appendChild(o);
+  };
+
+  const ru = list.filter(v => v.Locale.startsWith('ru-'));
+  const ml = list.filter(v => isMulti(v));
+  const rest = list.filter(v => !v.Locale.startsWith('ru-') && !isMulti(v));
+
+  if (ru.length){ const g = mkGroup(`Русские голоса (${ru.length})`); ru.forEach(v => addOpt(g, v)); sel.appendChild(g); }
+  if (ml.length){ const g = mkGroup(`Многоязычные — читают и русский (${ml.length})`); ml.forEach(v => addOpt(g, v)); sel.appendChild(g); }
+
+  const byLang = {};
+  rest.forEach(v => { const k = v.Locale.split('-')[0]; (byLang[k] = byLang[k] || []).push(v); });
+  Object.keys(byLang).sort().forEach(k => {
+    const g = mkGroup(`${langRu(k)} (${byLang[k].length})`);
+    byLang[k].forEach(v => addOpt(g, v));
+    sel.appendChild(g);
+  });
+
+  if (list.some(v => v.ShortName === prev)) sel.value = prev;
+  else {
+    const pref = ['ru-RU-SvetlanaNeural', 'en-US-AvaMultilingualNeural'];
+    const hit = pref.find(p => list.some(v => v.ShortName === p));
+    if (hit) sel.value = hit;
+  }
+}
+
+function refreshVoices(){
+  const list = allowedVoices();
+  buildSelect(list);
+  const cyr = isCyr($('text').value);
+  const note = $('note');
+  if (cyr && !showAll){
+    note.style.display = 'block';
+    note.innerHTML = 'Текст на русском — показываю только голоса, которые его читают. <a id="toggleAll">Показать все ' + VOICES.length + '</a>';
+    $('toggleAll').onclick = (e) => { e.preventDefault(); showAll = true; refreshVoices(); };
+  } else if (showAll && cyr){
+    note.style.display = 'block';
+    note.innerHTML = 'Показаны все голоса. Иноязычные на русском тексте не прочитают ничего. <a id="toggleAll">Вернуть только русские</a>';
+    $('toggleAll').onclick = (e) => { e.preventDefault(); showAll = false; refreshVoices(); };
+  } else {
+    note.style.display = 'none';
+  }
+}
+
+function setStatus(msg, isErr){
+  const s = $('status');
+  s.textContent = msg;
+  s.className = 'status' + (isErr ? ' err' : '');
+}
+
+function plural(n, one, few, many){
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}
+
+fetch('voices.json').then(r => r.json()).then(list => {
+  VOICES = list;
+  const working = list.filter(v => v.Ok !== false);
+  const langs = new Set(working.map(v => v.Locale.split('-')[0])).size;
+  $('voiceCount').textContent = `${working.length} ${plural(working.length, 'голос', 'голоса', 'голосов')} · ${langs} ${plural(langs, 'язык', 'языка', 'языков')}`;
+  refreshVoices();
+}).catch(() => {
+  $('voiceCount').textContent = 'каталог не загрузился';
+  setStatus('Не удалось загрузить список голосов. Перезапусти программу.', true);
+});
+
+$('filter').addEventListener('input', () => refreshVoices());
+
+$('text').addEventListener('input', () => {
+  const n = $('text').value.length;
+  $('counter').textContent = `${n} символов · примерно ${Math.max(1, Math.round(n / 75))} сек речи`;
+  refreshVoices();
+});
+
+$('rate').addEventListener('input', (e) => {
+  const v = +e.target.value;
+  $('rateVal').textContent = v === 0 ? 'обычная' : (v > 0 ? `+${v}%` : `${v}%`);
+});
+$('pitch').addEventListener('input', (e) => {
+  const v = +e.target.value;
+  $('pitchVal').textContent = v === 0 ? 'обычный' : (v > 0 ? `+${v}Hz` : `${v}Hz`);
+});
+
+$('sample').addEventListener('click', () => { $('text').value = SAMPLE; $('text').dispatchEvent(new Event('input')); });
+$('clear').addEventListener('click', () => { $('text').value = ''; $('text').dispatchEvent(new Event('input')); $('text').focus(); });
+
+$('paste').addEventListener('click', async () => {
+  try {
+    const t = await navigator.clipboard.readText();
+    if (!t || !t.trim()) { setStatus('В буфере пусто', true); return; }
+    $('text').value = t;
+    $('text').dispatchEvent(new Event('input'));
+    setStatus('Текст вставлен из буфера');
+  } catch (e) {
+    setStatus('Браузер не дал доступ к буферу — нажми в поле и вставь Ctrl+V', true);
+    $('text').focus();
+  }
+});
+
+$('listen').addEventListener('click', async () => {
+  const v = VOICES.find(x => x.ShortName === $('voice').value);
+  if (!v) return;
+  const ruSample = 'Привет. Так я звучу, когда читаю твой текст.';
+  const enSample = 'Hello. This is how I sound reading your text.';
+  const text = (v.Locale.startsWith('ru-') || isMulti(v)) ? ruSample : enSample;
+  $('listen').disabled = true;
+  setStatus('Слушаю голос…');
+  try {
+    const r = await fetch('/api/say', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice: v.ShortName, rate: '+0%', pitch: '+0Hz', preview: true })
+    });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || ('Ошибка ' + r.status)); }
+    const blob = await r.blob();
+    if (blob.size < 1000) throw new Error('Голос молчит на этом языке');
+    const a = new Audio(URL.createObjectURL(blob));
+    a.play();
+    setStatus('Так звучит ' + baseName(v.ShortName));
+  } catch (e) {
+    setStatus('Не получилось прослушать: ' + e.message, true);
+  } finally {
+    $('listen').disabled = false;
+  }
+});
+
+$('go').addEventListener('click', async () => {
+  const text = $('text').value.trim();
+  if (!text){ setStatus('Сначала вставь текст', true); $('text').focus(); return; }
+  const voiceName = $('voice').value;
+  const selected = VOICES.find(v => v.ShortName === voiceName);
+  if (selected && isCyr(text) && !selected.Locale.startsWith('ru-') && !isMulti(selected)){
+    setStatus('Этот голос не читает по-русски. Выбери «Русские голоса» или «Многоязычные».', true);
+    return;
+  }
+  const body = {
+    text,
+    voice: voiceName,
+    rate: ($('rate').value >= 0 ? '+' : '') + $('rate').value + '%',
+    pitch: ($('pitch').value >= 0 ? '+' : '') + $('pitch').value + 'Hz'
+  };
+  $('go').disabled = true;
+  $('dl').style.display = 'none';
+  $('dlSrt').style.display = 'none';
+  setStatus('Озвучиваю…');
+  const t0 = Date.now();
+  try {
+    const r = await fetch('/api/say', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (!r.ok){
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.error || ('Ошибка сервера ' + r.status));
+    }
+    const blob = await r.blob();
+    if (blob.size < 1000) throw new Error('Пустой звук: голос не читает текст на этом языке.');
+    if (lastUrl) URL.revokeObjectURL(lastUrl);
+    lastUrl = URL.createObjectURL(blob);
+    const name = decodeURIComponent(r.headers.get('X-File-Name') || 'ozvuchka.mp3');
+    const player = $('player');
+    player.src = lastUrl; player.style.display = 'block'; player.play().catch(() => {});
+    const dl = $('dl'); dl.href = lastUrl; dl.download = name; dl.style.display = 'inline';
+    const srtName = decodeURIComponent(r.headers.get('X-Srt-Name') || '');
+    if (srtName) {
+      const srt = $('dlSrt');
+      srt.href = '/api/file/' + encodeURIComponent(srtName);
+      srt.download = srtName;
+      srt.style.display = 'inline';
+    }
+    setStatus(`Готово за ${((Date.now() - t0) / 1000).toFixed(1)} с · mp3 и субтитры сохранены в папку output`);
+  } catch (e) {
+    setStatus('Не получилось: ' + e.message, true);
+  } finally {
+    $('go').disabled = false;
+  }
+});
+</script>
+</body>
+</html>

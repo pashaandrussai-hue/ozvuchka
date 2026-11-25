@@ -1,0 +1,15 @@
+{
+  "name": "ozvuchka",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Бесплатная озвучка текста: 309 голосов, 74 языка, субтитры .srt",
+  "scripts": {
+    "build:exe": "node tools/build_exe.js",
+    "dev": "node src/server.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "postject": "^1.0.0-alpha.6",
+    "msedge-tts": "^2.1.1"
+  }
+}
