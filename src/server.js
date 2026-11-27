@@ -1,5 +1,5 @@
 /**
- * Озвучка текста — v1.2
+ * Озвучка текста — v1.3
  * Локальный сервер: текст -> mp3 (+ субтитры .srt по границам слов).
  * Ни ключей, ни оплаты, ни аккаунтов. Слушает только 127.0.0.1.
  */
@@ -239,6 +239,102 @@ function sendJson(res, code, obj) {
 
 let busy = false;
 
+// ── движок «свой голос» (Python + Chatterbox) ──────────────────────────────
+const ENGINE_PORT = 8791;
+let engineProc = null;
+let engineStarting = null;
+
+function engineDir() {
+  const cands = [
+    process.env.OZVUCHKA_ENGINE,
+    path.join(assets.baseDir, 'engine'),
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'ozvuchka', 'engine') : null,
+    'D:\\Rabote\\engine',
+  ].filter(Boolean);
+  for (const d of cands) {
+    try { if (fs.existsSync(path.join(d, 'server.py'))) return d; } catch (_) {}
+  }
+  return null;
+}
+
+function enginePython(dir) {
+  for (const rel of [['venv', 'Scripts', 'python.exe'], ['venv', 'bin', 'python']]) {
+    const p = path.join(dir, ...rel);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
+function engineHealth() {
+  return new Promise((resolve) => {
+    const req = http.get({ host: '127.0.0.1', port: ENGINE_PORT, path: '/health', timeout: 1200 }, (r) => {
+      let body = '';
+      r.on('data', (d) => { body += d; });
+      r.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch (_) { resolve(null); }
+      });
+    });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+  });
+}
+
+/** Поднимает движок, если он ещё не работает. Без окна консоли. */
+async function ensureEngine() {
+  if (await engineHealth()) return true;
+  if (engineStarting) return engineStarting;
+
+  engineStarting = (async () => {
+    const dir = engineDir();
+    if (!dir) return false;
+    const py = enginePython(dir);
+    if (!py) return false;
+    try {
+      engineProc = execFile(py, [path.join(dir, 'server.py')], {
+        cwd: dir,
+        windowsHide: true,
+        stdio: 'ignore',
+        env: { ...process.env, PYTHONIOENCODING: 'utf-8', HF_HUB_DISABLE_SYMLINKS_WARNING: '1' },
+      });
+      engineProc.on('exit', () => { engineProc = null; });
+    } catch (_) {
+      return false;
+    }
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      if (await engineHealth()) return true;
+    }
+    return false;
+  })();
+
+  const ok = await engineStarting;
+  engineStarting = null;
+  return ok;
+}
+
+function readRawBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (d) => {
+      size += d.length;
+      if (size > limit) { reject(new Error('слишком большой файл')); req.destroy(); return; }
+      chunks.push(d);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+function stopEngine() {
+  if (engineProc) {
+    try { engineProc.kill(); } catch (_) {}
+    engineProc = null;
+  }
+}
+process.on('exit', stopEngine);
+process.on('SIGINT', () => { stopEngine(); process.exit(0); });
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
 
@@ -309,7 +405,7 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // ── управление приложением (v1.2) ────────────────────────────────────────
+  // ── управление приложением ────────────────────────────────────────
   if (req.method === 'POST' && url.pathname === '/api/open-folder') {
     try {
       fs.mkdirSync(OUTDIR, { recursive: true });
@@ -331,6 +427,75 @@ const server = http.createServer(async (req, res) => {
     lastPing = Date.now();
     if (!watchdog) startWatchdog();
     return sendJson(res, 200, { ok: true, out: OUTDIR });
+  }
+
+  // ── озвучка своим голосом: прокси к локальному движку ─────────────────────
+  if (url.pathname === '/api/clone/status') {
+    try {
+      const h = await engineHealth();
+      return sendJson(res, 200, {
+        installed: engineDir() !== null,
+        running: h !== null,
+        loaded: !!(h && h.loaded),
+        refs: (h && h.refs) || [],
+      });
+    } catch (e) {
+      return sendJson(res, 200, { installed: engineDir() !== null, running: false, loaded: false, refs: [] });
+    }
+  }
+
+  if (url.pathname === '/api/clone/progress') {
+    const h = await engineHealth();
+    return sendJson(res, 200, { state: (h && h.state) || { stage: 'idle' } });
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/clone/reference') {
+    try {
+      const raw = await readRawBody(req, 40 * 1024 * 1024);
+      if (!(await ensureEngine())) return sendJson(res, 503, { error: 'движок не запустился' });
+      const r = await fetch(`http://127.0.0.1:${ENGINE_PORT}/reference`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'audio/wav', 'Content-Length': String(raw.length) },
+        body: raw,
+      });
+      const j = await r.json();
+      return sendJson(res, r.status, j);
+    } catch (e) {
+      return sendJson(res, 500, { error: String(e.message || e) });
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/clone/say') {
+    try {
+      const rawJson = await readBody(req, 200 * 1024);
+      const data = JSON.parse(rawJson || '{}');
+      const text = String(data.text || '').trim();
+      if (!text) return sendJson(res, 400, { error: 'нет текста' });
+      if (text.length > 3000) return sendJson(res, 400, { error: 'для своего голоса максимум 3 000 символов за раз' });
+      if (!(await ensureEngine())) return sendJson(res, 503, { error: 'движок не запустился' });
+
+      const r = await fetch(`http://127.0.0.1:${ENGINE_PORT}/say`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, ref: String(data.ref || '') }),
+      });
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}));
+        return sendJson(res, r.status, { error: j.error || 'движок вернул ошибку' });
+      }
+      const buf = Buffer.from(await r.arrayBuffer());
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const name = `moy_golos_${stamp}.wav`;
+      fs.writeFileSync(path.join(OUTDIR, name), buf);
+      res.writeHead(200, {
+        'Content-Type': 'audio/wav',
+        'Content-Length': buf.length,
+        'X-File-Name': encodeURIComponent(name),
+      });
+      return res.end(buf);
+    } catch (e) {
+      return sendJson(res, 500, { error: String(e.message || e) });
+    }
   }
 
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
@@ -422,7 +587,7 @@ function listen(port, triesLeft) {
   server.listen(port, '127.0.0.1', async () => {
     const addr = `http://127.0.0.1:${port}`;
     console.log('');
-    console.log('  ОЗВУЧКА ТЕКСТА — версия 1.2');
+    console.log('  ОЗВУЧКА ТЕКСТА — версия 1.3');
     console.log('  Голосов в каталоге: ' + VOICES.length);
     console.log('  Файлы сохраняются в: ' + OUTDIR);
     console.log('');

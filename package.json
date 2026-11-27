@@ -1,8 +1,8 @@
 {
   "name": "ozvuchka",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
-  "description": "Озвучка текста: 309 голосов, 74 языка, субтитры .srt. Приложение для Windows",
+  "description": "Озвучка текста: 309 голосов + озвучка своим голосом по записи. Приложение для Windows",
   "scripts": {
     "build:exe": "node tools/build_exe.js",
     "dev": "node src/server.js"

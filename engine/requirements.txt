@@ -1,0 +1,13 @@
+# Движок «озвучка своим голосом» (опциональный модуль)
+#
+# Ставится один раз, отдельно от самой программы:
+#   python -m venv venv
+#   venv\Scripts\pip install -r requirements.txt
+#   venv\Scripts\pip install "setuptools<81"
+#
+# Модель Chatterbox (MIT) скачается при первом запуске (~2 ГБ).
+
+chatterbox-tts
+torch
+torchaudio
+soundfile

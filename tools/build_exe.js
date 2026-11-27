@@ -1,17 +1,19 @@
 /**
- * Сборка ozvuchka.exe: приложение в одном файле.
+ * Сборка ozvuchka.exe — приложение в одном файле, без консольного окна.
  *
  *  1. встраивает страницу и каталог голосов внутрь бандла;
  *  2. бандлит сервер в один JS;
  *  3. собирает blob Node SEA;
  *  4. копирует node.exe, ставит иконку и реквизиты (rcedit);
- *  5. вшивает blob (postject).
+ *  5. вшивает blob (postject);
+ *  6. переключает PE в режим GUI — чёрное окно консоли больше не появляется.
  *
  * Запуск: node tools/build_exe.js   (только Windows)
  */
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const subsystem = require('./patch_subsystem');
 
 const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
@@ -121,8 +123,14 @@ module.exports = {
     'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
   ], ROOT);
 
+  // 6. без консольного окна
+  const res = subsystem.patch(OUT);
+  console.log('PE subsystem: ' + res.subsystem + (res.changed ? ' (переключено с ' + res.before + ')' : ' (уже GUI)'));
+  const check = subsystem.read(OUT);
+  if (check !== 2) throw new Error('не удалось переключить в GUI-режим: ' + check);
+
   const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);
-  console.log('\nГОТОВО: ' + OUT + ' (' + mb + ' МБ, версия ' + VERSION + ')');
+  console.log('\nГОТОВО: ' + OUT + ' (' + mb + ' МБ, версия ' + VERSION + ', без консоли)');
 }
 
 main();
