@@ -148,7 +148,10 @@ async function synthesize(text, voice, rate, pitch) {
         if (/Пустой ответ/.test(msg)) {
           throw new Error(`Голос ${voice} не читает текст на этом языке — вернул пустой звук${where}. Выбери русский или многоязычный голос.`);
         }
-        throw new Error(`Сервис озвучки не ответил${where}: ${msg}. Попробуй другой голос или повтори.`);
+        if (/stream closed|turn\.end|timeout|Таймаут/i.test(msg)) {
+          throw new Error('Сервис озвучки сейчас перегружен и не ответил. Подожди минуту и нажми «Озвучить» ещё раз — программа уже пробовала несколько раз.');
+        }
+        throw new Error(`Сервис озвучки не ответил${where}. Попробуй ещё раз или выбери другой голос.`);
       }
       for (const w of chunkWords) {
         words.push({ text: w.text, start: w.start + played, dur: w.dur });
