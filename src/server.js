@@ -129,14 +129,16 @@ async function synthesize(text, voice, rate, pitch) {
       let chunkWords = [];
       let buf = null;
       let lastErr = null;
-      for (let attempt = 1; attempt <= 4 && !buf; attempt++) {
+      for (let attempt = 1; attempt <= 5 && !buf; attempt++) {
         chunkWords = [];
         try {
           buf = await streamChunk(tts, chunks[i], rate, pitch, chunkWords);
         } catch (e) {
           lastErr = e;
           try { tts.close(); } catch (_) {}
-          await new Promise((r) => setTimeout(r, 700 * attempt));
+          // Edge иногда рвёт соединение: ждём всё дольше и открываем заново
+          const wait = Math.min(1200 * Math.pow(2, attempt - 1), 6000);
+          await new Promise((r) => setTimeout(r, wait));
           try { tts = await openTts(voice); } catch (_) {}
         }
       }
