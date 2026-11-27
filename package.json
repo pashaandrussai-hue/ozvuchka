@@ -1,8 +1,8 @@
 {
   "name": "ozvuchka",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
-  "description": "Озвучка текста: 309 голосов + озвучка своим голосом по записи. Приложение для Windows",
+  "description": "РћР·РІСѓС‡РєР° С‚РµРєСЃС‚Р°: 309 РіРѕР»РѕСЃРѕРІ + РѕР·РІСѓС‡РєР° СЃРІРѕРёРј РіРѕР»РѕСЃРѕРј РїРѕ Р·Р°РїРёСЃРё. РџСЂРёР»РѕР¶РµРЅРёРµ РґР»СЏ Windows",
   "scripts": {
     "build:exe": "node tools/build_exe.js",
     "dev": "node src/server.js"

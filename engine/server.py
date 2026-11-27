@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Движок «озвучка своим голосом»: Chatterbox TTS (лицензия MIT), локально, без интернета.
+Движок «озвучка своим голосом»: Chatterbox Multilingual (лицензия MIT), локально.
 
 Запускается приложением автоматически. Слушает только 127.0.0.1.
 
@@ -8,7 +8,7 @@
   POST /reference   -> сохранить запись голоса (WAV 16 кГц, телом запроса)
   POST /say         -> JSON {text, ref, language} -> WAV
 
-Модель грузится один раз при первом запросе (~10-20 с), первый запуск качает веса.
+Языки: ru, en, fr, de (модель поддерживает 23, мы ограничили интерфейсом).
 """
 import io
 import json
@@ -25,9 +25,13 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 REFS = os.path.join(BASE, 'references')
 os.makedirs(REFS, exist_ok=True)
 
+ALLOWED = {'ru', 'en', 'fr', 'de'}
+DEFAULT_LANG = 'ru'
+
 _model = None
+_model_lang = None
 _lock = threading.Lock()
-_state = {'stage': 'idle', 'done': 0, 'total': 0, 'elapsed': 0.0}
+_state = {'stage': 'idle', 'done': 0, 'total': 0, 'elapsed': 0.0, 'language': DEFAULT_LANG}
 
 
 def log(*a):
@@ -41,17 +45,16 @@ def get_model():
     global _model
     with _lock:
         if _model is None:
-            log('загружаю модель Chatterbox')
+            log('загружаю многоязычную модель Chatterbox')
             t0 = time.time()
-            from chatterbox.tts import ChatterboxTTS
-            _model = ChatterboxTTS.from_pretrained(device='cpu')
+            from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+            _model = ChatterboxMultilingualTTS.from_pretrained(device='cpu')
             log('модель готова за %.1f с' % (time.time() - t0))
         return _model
 
 
-def split_text(text, limit=220):
-    """Режем на предложения — так проще следить за прогрессом и не растягивать синтез."""
-    parts = re.split(r'(?<=[.!?…])\s+', text.replace('\n', ' ').strip())
+def split_text(text, limit=180):
+    parts = re.split(r'(?<=[.!?…。！？])\s+', text.replace('\n', ' ').strip())
     out, cur = [], ''
     for p in parts:
         if not p:
@@ -85,19 +88,22 @@ def wav_bytes(tensor, sr):
     return buf.getvalue()
 
 
-def say(text, ref_path):
+def say(text, ref_path, language):
     import torch
     model = get_model()
+    lang = language if language in ALLOWED else DEFAULT_LANG
+    # новый образец голоса — пересобрать conditionals
+    model.prepare_conditionals(ref_path)
     chunks = split_text(text)
-    _state.update({'stage': 'synthesizing', 'done': 0, 'total': len(chunks), 'elapsed': 0.0})
+    _state.update({'stage': 'synthesizing', 'done': 0, 'total': len(chunks),
+                   'elapsed': 0.0, 'language': lang})
     t0 = time.time()
     pieces = []
     for i, chunk in enumerate(chunks, 1):
-        wav = model.generate(chunk, audio_prompt_path=ref_path)
+        wav = model.generate(chunk, language_id=lang, audio_prompt_path=ref_path)
         pieces.append(wav)
         _state.update({'done': i, 'elapsed': round(time.time() - t0, 1)})
-        log('часть %d/%d за %.1f с' % (i, len(chunks), time.time() - t0))
-        # короткая пауза между фразами
+        log('часть %d/%d (%s) за %.1f с' % (i, len(chunks), lang, time.time() - t0))
         if i < len(chunks):
             pieces.append(torch.zeros(1, int(model.sr * 0.25)))
     full = torch.cat(pieces, dim=-1)
@@ -130,8 +136,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/health':
             return self._json(200, {
                 'ok': True,
-                'engine': 'chatterbox',
+                'engine': 'chatterbox-multilingual',
                 'loaded': _model is not None,
+                'languages': sorted(ALLOWED),
                 'state': _state,
                 'refs': sorted(os.listdir(REFS)),
             })
@@ -154,6 +161,7 @@ class Handler(BaseHTTPRequestHandler):
                 data = json.loads(self._body(4 * 1024 * 1024).decode('utf-8') or '{}')
                 text = (data.get('text') or '').strip()
                 ref = os.path.basename(data.get('ref') or '')
+                lang = (data.get('language') or DEFAULT_LANG).lower()
                 if not text:
                     return self._json(400, {'error': 'нет текста'})
                 ref_path = os.path.join(REFS, ref) if ref else ''
@@ -161,11 +169,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json(400, {'error': 'нет записи голоса — сначала запиши образец'})
                 _state.update({'stage': 'starting'})
                 t0 = time.time()
-                wav = say(text, ref_path)
+                wav = say(text, ref_path, lang)
                 self.send_response(200)
                 self.send_header('Content-Type', 'audio/wav')
                 self.send_header('Content-Length', str(len(wav)))
                 self.send_header('X-Seconds', '%.1f' % (time.time() - t0))
+                self.send_header('X-Language', lang)
                 self.end_headers()
                 self.wfile.write(wav)
                 return

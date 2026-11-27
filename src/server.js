@@ -1,5 +1,5 @@
 /**
- * Озвучка текста — v1.3
+ * Озвучка текста — v1.4
  * Локальный сервер: текст -> mp3 (+ субтитры .srt по границам слов).
  * Ни ключей, ни оплаты, ни аккаунтов. Слушает только 127.0.0.1.
  */
@@ -477,7 +477,7 @@ const server = http.createServer(async (req, res) => {
       const r = await fetch(`http://127.0.0.1:${ENGINE_PORT}/say`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, ref: String(data.ref || '') }),
+        body: JSON.stringify({ text, ref: String(data.ref || ''), language: String(data.language || 'ru') }),
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
@@ -587,7 +587,7 @@ function listen(port, triesLeft) {
   server.listen(port, '127.0.0.1', async () => {
     const addr = `http://127.0.0.1:${port}`;
     console.log('');
-    console.log('  ОЗВУЧКА ТЕКСТА — версия 1.3');
+    console.log('  ОЗВУЧКА ТЕКСТА — версия 1.4');
     console.log('  Голосов в каталоге: ' + VOICES.length);
     console.log('  Файлы сохраняются в: ' + OUTDIR);
     console.log('');
