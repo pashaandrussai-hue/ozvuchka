@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Озвучка текста — бесплатно</title>
+<title>Озвучка текста — версия 1.2</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f14'/%3E%3Cg fill='%235ee0ff'%3E%3Crect x='12' y='26' width='5' height='12' rx='2.5'/%3E%3Crect x='21' y='18' width='5' height='28' rx='2.5'/%3E%3Crect x='30' y='10' width='5' height='44' rx='2.5'/%3E%3Crect x='39' y='20' width='5' height='24' rx='2.5'/%3E%3Crect x='48' y='27' width='5' height='10' rx='2.5'/%3E%3C/g%3E%3C/svg%3E">
 <style>
   :root{
     --bg:#0b0f14; --panel:#121a22; --panel2:#0e151c; --line:#22303d;
@@ -112,12 +113,20 @@
     </div>
 
     <audio id="player" controls style="display:none"></audio>
-    <div class="hint">Готовые файлы сохраняются в папку <b>output</b> рядом с программой: <b>mp3</b> и <b>субтитры .srt</b> с точным временем по каждому слову — их можно сразу подставить в CapCut, Premiere или загрузить на YouTube.</div>
+    <div class="hint">
+      Файлы сохраняются в папку <b>output</b> рядом с программой — <b>mp3</b> и <b>субтитры .srt</b> с точным временем по каждому слову.
+      <button class="ghost" id="openFolder" type="button" style="padding:5px 10px;font-size:12.5px;margin-left:6px">Открыть папку</button>
+    </div>
   </div>
 
   <footer>
+    <div style="margin-bottom:8px">
+      <b style="color:#8ba0b2">Озвучка текста · версия 1.2</b> — работает на твоём компьютере, данные никуда не уходят.
+    </div>
     Голоса предоставляются бесплатным сервисом Microsoft Edge. Озвучивай только тот текст и те голоса, на которые у тебя есть право.
-    Программа не требует оплаты и не собирает твои данные.
+    <div style="margin-top:10px">
+      <button class="ghost" id="quit" type="button" style="padding:7px 14px;font-size:13px">Выход</button>
+    </div>
   </footer>
 </div>
 
@@ -344,6 +353,32 @@ $('go').addEventListener('click', async () => {
     $('go').disabled = false;
   }
 });
+$('openFolder').addEventListener('click', async () => {
+  try {
+    const r = await fetch('/api/open-folder', { method: 'POST' });
+    const j = await r.json();
+    if (j.ok) setStatus('Папка открыта: ' + j.path);
+    else setStatus('Не смог открыть папку: ' + j.error, true);
+  } catch (e) {
+    setStatus('Не смог открыть папку', true);
+  }
+});
+
+$('quit').addEventListener('click', async () => {
+  setStatus('Выключаю программу…');
+  try { await fetch('/api/quit', { method: 'POST' }); } catch (_) {}
+  setTimeout(() => {
+    document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:70vh;font:16px system-ui;color:#8ba0b2;text-align:center;padding:40px">Программа выключена.<br>Это окно можно закрыть.</div>';
+  }, 400);
+});
+
+// пульс: пока окно открыто — сервер живёт; закрыл окно — выключится сам
+(function heartbeat() {
+  const tick = () => fetch('/api/ping', { cache: 'no-store' }).catch(() => {});
+  tick();
+  setInterval(tick, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+})();
 </script>
 </body>
 </html>

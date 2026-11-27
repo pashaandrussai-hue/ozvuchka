@@ -6,7 +6,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 const assets = require('./assets');
 
@@ -304,29 +304,150 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // ── управление приложением (v1.2) ────────────────────────────────────────
+  if (req.method === 'POST' && url.pathname === '/api/open-folder') {
+    try {
+      fs.mkdirSync(OUTDIR, { recursive: true });
+      execFile('explorer.exe', [OUTDIR], { windowsHide: true }, () => {});
+      return sendJson(res, 200, { ok: true, path: OUTDIR });
+    } catch (e) {
+      return sendJson(res, 500, { ok: false, error: String(e.message || e) });
+    }
+  }
+
+  if (req.method === 'POST' && url.pathname === '/api/quit') {
+    sendJson(res, 200, { ok: true });
+    setTimeout(() => process.exit(0), 250);
+    return;
+  }
+
+  // страница шлёт пульс: если окно закрыли — сервер сам завершится
+  if (url.pathname === '/api/ping') {
+    lastPing = Date.now();
+    if (!watchdog) startWatchdog();
+    return sendJson(res, 200, { ok: true, out: OUTDIR });
+  }
+
   res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
   res.end('Не найдено');
 });
 
+// ── запуск приложения ──────────────────────────────────────────────────────
+
+/** Уже запущено? Тогда просто открываем окно и выходим — второй копии не нужно. */
+function alreadyRunning(port) {
+  return new Promise((resolve) => {
+    const req = http.get({ host: '127.0.0.1', port, path: '/api/health', timeout: 900 }, (r) => {
+      let body = '';
+      r.on('data', (d) => { body += d; });
+      r.on('end', () => resolve(r.statusCode === 200 && body.includes('"ok":true')));
+    });
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+  });
+}
+
+/** Браузеры, которые умеют режим приложения (окно без адресной строки и вкладок). */
+function browserCandidates() {
+  const pf = process.env['ProgramFiles'] || 'C:\\Program Files';
+  const pf86 = process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)';
+  const local = process.env['LOCALAPPDATA'] || '';
+  return [
+    path.join(pf86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    path.join(pf, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+    path.join(pf, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    path.join(pf86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    local ? path.join(local, 'Google', 'Chrome', 'Application', 'chrome.exe') : '',
+    path.join(pf86, 'Yandex', 'YandexBrowser', 'Application', 'browser.exe'),
+    path.join(pf, 'Yandex', 'YandexBrowser', 'Application', 'browser.exe'),
+    local ? path.join(local, 'Yandex', 'YandexBrowser', 'Application', 'browser.exe') : '',
+  ].filter(Boolean);
+}
+
+let appProfile = null;
+
+function openWindow(addr) {
+  if (process.platform !== 'win32') {
+    exec(`xdg-open "${addr}"`);
+    return 'browser';
+  }
+  // отдельный профиль: окно полностью наше, чужая история и входы не затрагиваются
+  appProfile = path.join(assets.baseDir, '.app-profile');
+  fs.mkdirSync(appProfile, { recursive: true });
+
+  for (const exe of browserCandidates()) {
+    if (!fs.existsSync(exe)) continue;
+    const args = [
+      `--app=${addr}`,
+      '--window-size=1180,940',
+      `--user-data-dir=${appProfile}`,
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-features=Translate,MediaRouter',
+      '--disable-sync',
+    ];
+    try {
+      const child = execFile(exe, args, { detached: true, stdio: 'ignore', windowsHide: false });
+      child.unref();
+      return 'app:' + path.basename(exe);
+    } catch (_) { /* пробуем следующий */ }
+  }
+  exec(`start "" "${addr}"`);
+  return 'browser';
+}
+
+let lastPing = 0;
+let watchdog = null;
+
+/** Выключаемся, если окно закрыли и пульс пропал. */
+function startWatchdog() {
+  if (process.env.NO_AUTOEXIT === '1') return;
+  const IDLE_MS = Number(process.env.WATCHDOG_IDLE_MS || 150000);
+  watchdog = setInterval(() => {
+    if (lastPing && Date.now() - lastPing > IDLE_MS) {
+      console.log('Окно закрыто — выключаюсь.');
+      try { fs.rmSync(appProfile, { recursive: true, force: true }); } catch (_) {}
+      process.exit(0);
+    }
+  }, Math.min(15000, Math.max(1000, Math.floor(IDLE_MS / 3))));
+  watchdog.unref?.();
+}
+
 function listen(port, triesLeft) {
-  server.listen(port, '127.0.0.1', () => {
+  server.listen(port, '127.0.0.1', async () => {
     const addr = `http://127.0.0.1:${port}`;
     console.log('');
-    console.log('  ОЗВУЧКА ТЕКСТА — v1.2');
+    console.log('  ОЗВУЧКА ТЕКСТА — версия 1.2');
     console.log('  Голосов в каталоге: ' + VOICES.length);
-    console.log('  Открываю: ' + addr);
-    console.log('  Закрыть программу: Ctrl+C в этом окне (или просто закрой окно).');
+    console.log('  Файлы сохраняются в: ' + OUTDIR);
     console.log('');
-    if (process.platform === 'win32' && !process.env.NO_OPEN) exec(`start "" "${addr}"`);
+    if (process.env.NO_OPEN !== '1') {
+      const how = openWindow(addr);
+      console.log('  Окно программы: ' + how);
+    }
+    console.log('  Закрыть программу: закрой окно (выключится само через пару минут)');
+    console.log('  или кнопка «Выход» в окне. Это окно можно свернуть.');
+    console.log('');
   });
   server.on('error', (e) => {
     if (e.code === 'EADDRINUSE' && triesLeft > 0) {
       listen(port + 1, triesLeft - 1);
     } else {
-      console.error('Не удалось запустить сервер: ' + e.message);
+      console.error('Не удалось запустить: ' + e.message);
       process.exit(1);
     }
   });
 }
 
-listen(PORT_START, 10);
+(async () => {
+  // вторая копия не нужна: будим окно уже запущенной
+  for (let p = PORT_START; p < PORT_START + 10; p++) {
+    if (await alreadyRunning(p)) {
+      console.log('Программа уже запущена — открываю окно.');
+      if (process.env.NO_OPEN !== '1') openWindow(`http://127.0.0.1:${p}`);
+      setTimeout(() => process.exit(0), 1200);
+      return;
+    }
+  }
+  listen(PORT_START, 10);
+})();

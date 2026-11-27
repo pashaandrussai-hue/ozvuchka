@@ -1,9 +1,13 @@
 /**
- * Сборка ozvuchka.exe: встраивает страницу и каталог голосов, бандлит в один файл
- * и упаковывает Node в один exe (SEA + postject).
+ * Сборка ozvuchka.exe: приложение в одном файле.
  *
- * Запуск: node tools/build_exe.js
- * Работает и на Windows, и на Linux-раннере (тогда exe не собрать — нужен windows-latest).
+ *  1. встраивает страницу и каталог голосов внутрь бандла;
+ *  2. бандлит сервер в один JS;
+ *  3. собирает blob Node SEA;
+ *  4. копирует node.exe, ставит иконку и реквизиты (rcedit);
+ *  5. вшивает blob (postject).
+ *
+ * Запуск: node tools/build_exe.js   (только Windows)
  */
 const fs = require('fs');
 const path = require('path');
@@ -13,10 +17,21 @@ const ROOT = path.resolve(__dirname, '..');
 const SRC = path.join(ROOT, 'src');
 const BUILD = path.join(ROOT, 'build');
 const OUT = path.join(ROOT, 'ozvuchka.exe');
+const ICON = path.join(ROOT, 'assets', 'icon.ico');
+const VERSION = require(path.join(ROOT, 'package.json')).version;
 
 function run(cmd, args, cwd) {
-  console.log('> ' + path.basename(cmd) + ' ' + args.join(' '));
+  console.log('> ' + path.basename(cmd) + ' ' + args.map((a) => (a.length > 70 ? a.slice(0, 70) + '…' : a)).join(' '));
   execFileSync(cmd, args, { cwd, stdio: 'inherit' });
+}
+
+function rceditPath() {
+  const base = path.join(ROOT, 'node_modules', 'rcedit', 'bin');
+  for (const name of ['rcedit-x64.exe', 'rcedit.exe']) {
+    const p = path.join(base, name);
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
 }
 
 function main() {
@@ -28,10 +43,9 @@ function main() {
   fs.rmSync(BUILD, { recursive: true, force: true });
   fs.mkdirSync(BUILD, { recursive: true });
 
-  // 1. исходник сервера
+  // 1. сервер + встроенные ассеты
   fs.copyFileSync(path.join(SRC, 'server.js'), path.join(BUILD, 'server.js'));
 
-  // 2. встроенные ассеты вместо чтения с диска
   const html = fs.readFileSync(path.join(SRC, 'public', 'index.html'));
   const voices = fs.readFileSync(path.join(SRC, 'voices.json'));
   const assetsJs = `const path = require('path');
@@ -51,7 +65,7 @@ module.exports = {
   fs.writeFileSync(path.join(BUILD, 'assets.js'), assetsJs, 'utf8');
   console.log('встроено: html ' + html.length + ' Б, голоса ' + voices.length + ' Б');
 
-  // 3. бандл
+  // 2. бандл
   const esbuild = require('esbuild');
   esbuild.buildSync({
     entryPoints: [path.join(BUILD, 'server.js')],
@@ -63,23 +77,40 @@ module.exports = {
     outfile: path.join(BUILD, 'bundle.js'),
     logLevel: 'warning',
   });
-  const bundleSize = fs.statSync(path.join(BUILD, 'bundle.js')).size;
-  console.log('bundle.js: ' + Math.round(bundleSize / 1024) + ' КБ');
+  console.log('bundle.js: ' + Math.round(fs.statSync(path.join(BUILD, 'bundle.js')).size / 1024) + ' КБ');
 
-  // 4. blob для SEA
-  const seaConfig = {
+  // 3. blob для SEA
+  fs.writeFileSync(path.join(BUILD, 'sea-config.json'), JSON.stringify({
     main: 'bundle.js',
     output: 'sea-prep.blob',
     disableExperimentalSEAWarning: true,
     useSnapshot: false,
     useCodeCache: false,
-  };
-  fs.writeFileSync(path.join(BUILD, 'sea-config.json'), JSON.stringify(seaConfig, null, 2));
+  }, null, 2));
   run(process.execPath, ['--experimental-sea-config', 'sea-config.json'], BUILD);
   console.log('blob: ' + Math.round(fs.statSync(path.join(BUILD, 'sea-prep.blob')).size / 1024) + ' КБ');
 
-  // 5. копия node.exe + внедрение blob
+  // 4. node.exe -> ozvuchka.exe + иконка и реквизиты
   fs.copyFileSync(process.execPath, OUT);
+
+  const rc = rceditPath();
+  if (rc && fs.existsSync(ICON)) {
+    run(rc, [
+      OUT,
+      '--set-icon', ICON,
+      '--set-file-version', VERSION + '.0',
+      '--set-product-version', VERSION + '.0',
+      '--set-version-string', 'ProductName', 'Озвучка текста',
+      '--set-version-string', 'FileDescription', 'Озвучка текста — бесплатная программа',
+      '--set-version-string', 'OriginalFilename', 'ozvuchka.exe',
+      '--set-version-string', 'CompanyName', 'ozvuchka',
+    ], ROOT);
+    console.log('иконка и реквизиты установлены (v' + VERSION + ')');
+  } else {
+    console.log('rcedit или иконка не найдены — собираю без иконки');
+  }
+
+  // 5. вшиваем blob
   const postject = path.join(ROOT, 'node_modules', 'postject', 'dist', 'cli.js');
   run(process.execPath, [
     postject,
@@ -91,7 +122,7 @@ module.exports = {
   ], ROOT);
 
   const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);
-  console.log('\nГОТОВО: ' + OUT + ' (' + mb + ' МБ)');
+  console.log('\nГОТОВО: ' + OUT + ' (' + mb + ' МБ, версия ' + VERSION + ')');
 }
 
 main();
